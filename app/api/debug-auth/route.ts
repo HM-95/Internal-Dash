@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
+import { notFoundUnlessDebugApiEnabled } from '../../../lib/api-route-guards';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -8,6 +9,9 @@ const supabase = createClient(
 );
 
 export async function POST(request: NextRequest) {
+  const blocked = notFoundUnlessDebugApiEnabled();
+  if (blocked) return blocked;
+
   try {
     const { username, password } = await request.json();
 

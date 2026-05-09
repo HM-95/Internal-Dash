@@ -27,7 +27,6 @@
     "dotenv": "^17.2.1",
     "framer-motion": "^12.23.12",
     "jose": "^6.1.0",
-    "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.453.0",
     "next": "^14.2.31",
     "openai": "^5.12.0",
@@ -41,7 +40,6 @@
   "devDependencies": {
     "@babel/parser": "^7.28.5",
     "@types/bcryptjs": "^2.4.6",
-    "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^20.0.0",
     "@types/react": "18.2.0",
     "@types/react-dom": "18.2.0",

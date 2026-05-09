@@ -4,9 +4,15 @@ Required environment variables
 - NEXT_PUBLIC_SUPABASE_URL (public)
 - NEXT_PUBLIC_SUPABASE_ANON_KEY (public client key)
 - SUPABASE_SERVICE_ROLE_KEY (server only)
+- JWT_SECRET (server only; **required in production** for internal session cookies)
 - OPENAI_API_KEY (server only)
 - GEMINI_API_KEY (server only)
 - RESEND_API_KEY (server only, if email sending enabled)
+
+Optional / operational
+- SETUP_USERS_SECRET + INTERNAL_USERS_SEED — only if using `POST /api/setup-users` for seeding (prefer local script).
+- ENABLE_DEBUG_API — must be `true` for `/api/debug-*` routes to respond in production (default: off).
+- ENABLE_DANGEROUS_MIGRATIONS — must be `true` for HTTP migration routes in production (default: off).
 
 Storage locations
 - Local dev: `.env.local` (git-ignored). Never commit.

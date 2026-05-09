@@ -44,14 +44,8 @@ DROP POLICY IF EXISTS "Service role can manage access logs" ON public.internal_a
 CREATE POLICY "Service role can manage access logs" ON public.internal_access_logs
   FOR ALL USING (auth.role() = 'service_role');
 
--- Insert initial users (passwords will be hashed by the application)
--- Note: These are placeholder values - actual hashed passwords will be inserted by the application
-INSERT INTO public.internal_users (username, password_hash, access_group) VALUES
-  ('hari_m', 'PLACEHOLDER_HASH', 'code_access'),
-  ('odin_l', 'PLACEHOLDER_HASH', 'code_access'),
-  ('avik_r', 'PLACEHOLDER_HASH', 'code_access'),
-  ('member_haven', 'PLACEHOLDER_HASH', 'non_code_access')
-ON CONFLICT (username) DO NOTHING;
+-- Initial users: use scripts/setup-internal-users.js with INTERNAL_USERS_SEED in .env.local
+-- (Do not commit real passwords; hash at insert time via the script or /api/setup-users with secrets.)
 
 -- Create function to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()

@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import DashboardLayoutClient from './DashboardLayoutClient';
 import { jwtVerify } from 'jose';
+import { getJwtSecretBytes } from '../../lib/jwt-secret';
 
 export default async function DashboardLayout({
   children,
@@ -13,25 +14,32 @@ export default async function DashboardLayout({
   const sessionToken = cookieStore.get('internal_session')?.value;
   
   if (!sessionToken) {
-    console.log('No session token found, redirecting to login');
+    if (process.env.NODE_ENV === 'development') {
+      console.log('No session token found, redirecting to login');
+    }
     redirect('/login');
   }
-  
-  // Verify JWT token using jose (compatible with server components)
+
   let sessionData;
   try {
-    const secret = new TextEncoder().encode(
-      process.env.JWT_SECRET || 'fallback-secret-change-in-production'
-    );
-    
+    const secret = getJwtSecretBytes();
     const { payload } = await jwtVerify(sessionToken, secret);
     sessionData = payload;
-  } catch (error) {
-    console.log('Invalid session token, redirecting to login');
+  } catch {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Invalid session token, redirecting to login');
+    }
     redirect('/login');
   }
-  
-  console.log('Dashboard access granted for:', sessionData.username, 'Group:', sessionData.accessGroup);
+
+  if (process.env.NODE_ENV === 'development') {
+    console.log(
+      'Dashboard access granted for:',
+      sessionData.username,
+      'Group:',
+      sessionData.accessGroup
+    );
+  }
   
   return (
     <DashboardLayoutClient 

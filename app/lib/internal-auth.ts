@@ -4,6 +4,7 @@ import { cookies } from 'next/headers';
 import { NextRequest } from 'next/server';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { createClient } from '@supabase/supabase-js';
+import { getJwtSecretBytes, requireJwtSecretForSigning } from '../../lib/jwt-secret';
 
 export interface InternalUser {
   id: string;
@@ -20,8 +21,6 @@ export interface SessionData {
   userId: string;
 }
 
-// Constants
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-change-in-production';
 const SESSION_COOKIE_NAME = 'internal_session';
 const SESSION_DURATION = 8 * 60 * 60 * 1000; // 8 hours in milliseconds
 
@@ -43,7 +42,7 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
  * Create a JWT token for session
  */
 export async function createSessionToken(sessionData: SessionData): Promise<string> {
-  const secret = new TextEncoder().encode(JWT_SECRET);
+  const secret = new TextEncoder().encode(requireJwtSecretForSigning());
   
   const token = await new SignJWT(sessionData as any)
     .setProtectedHeader({ alg: 'HS256' })
@@ -58,7 +57,7 @@ export async function createSessionToken(sessionData: SessionData): Promise<stri
  */
 export async function verifySessionToken(token: string): Promise<SessionData | null> {
   try {
-    const secret = new TextEncoder().encode(JWT_SECRET);
+    const secret = getJwtSecretBytes();
     const { payload } = await jwtVerify(token, secret);
     return payload as unknown as SessionData;
   } catch (error) {
@@ -74,23 +73,29 @@ export async function getCurrentSession(): Promise<SessionData | null> {
     const cookieStore = await cookies();
     const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
     
-    console.log('getCurrentSession - Cookie check:', {
-      cookieName: SESSION_COOKIE_NAME,
-      hasToken: !!sessionToken,
-      tokenLength: sessionToken?.length
-    });
-    
+    if (process.env.NODE_ENV === 'development') {
+      console.log('getCurrentSession - Cookie check:', {
+        cookieName: SESSION_COOKIE_NAME,
+        hasToken: !!sessionToken,
+        tokenLength: sessionToken?.length,
+      });
+    }
+
     if (!sessionToken) {
-      console.log('getCurrentSession - No session token found');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('getCurrentSession - No session token found');
+      }
       return null;
     }
-    
+
     const session = await verifySessionToken(sessionToken);
-    console.log('getCurrentSession - Verified session:', {
-      hasSession: !!session,
-      userId: session?.userId,
-      username: session?.username
-    });
+    if (process.env.NODE_ENV === 'development') {
+      console.log('getCurrentSession - Verified session:', {
+        hasSession: !!session,
+        userId: session?.userId,
+        username: session?.username,
+      });
+    }
     
     return session;
   } catch (error) {
@@ -155,10 +160,10 @@ export async function authenticateUser(username: string, password: string): Prom
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
     
-    console.log('Authenticating user:', username);
-    console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
-    console.log('Service role key exists:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
-    
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Authenticating user:', username);
+    }
+
     const { data: user, error } = await supabase
       .from('internal_users')
       .select('*')
@@ -166,10 +171,14 @@ export async function authenticateUser(username: string, password: string): Prom
       .eq('is_active', true)
       .single();
 
-    console.log('Database query result:', { user, error });
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Database query result:', { hasUser: !!user, error: error?.message });
+    }
 
     if (error || !user) {
-      console.log('User not found or error:', error);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('User not found or error:', error?.message);
+      }
       return null;
     }
 
