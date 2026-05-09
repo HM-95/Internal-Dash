@@ -1,6 +1,6 @@
 # Internal Dash
 
-This is an internal tool for **creator growth and analytics**: compare creators side by side, track performance signals (followers, engagement, views, momentum), segment with filters, and run repeatable lists for outreach and partnerships. The codebase is cloned and filtered to act as a portfolio / demo codebase; you connect your own Supabase project and configuration.
+This is an internal tool developed by First Query (Led by Hariprasad & Odin) for **creator growth and analytics** to compare creators side by side, track performance signals (followers, engagement, views, momentum), segment with filters, and run repeatable lists for outreach and partnerships. The codebase is cloned and filtered to act as a portfolio demo; you can connect your own Supabase project and configuration.
 
 **Stack:** Next.js 14 (App Router), TypeScript, Tailwind CSS, Supabase (Postgres). Optional Stripe for subscription flows.
 
