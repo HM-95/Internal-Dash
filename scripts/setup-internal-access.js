@@ -92,9 +92,7 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
   console.log('1. Copy .env.internal-template to .env.local and update the values');
   console.log('2. Generate secure JWT_SECRET and INTERNAL_AUTH_SECRET values');
   console.log('3. Update your Supabase environment variables');
-  console.log('4. Test the login system with the provided credentials:');
-  console.log('   - Code Access: hari_m, odin_l, avik_r (password: Havendev%2026)');
-  console.log('   - Non-Code Access: member_haven (password: Team@haven.2026)');
+  console.log('4. Set INTERNAL_USERS_SEED in .env.local and run: node scripts/setup-internal-users.js');
   console.log('5. Run "npm run dev" to start the development server');
   console.log('\n📚 For reverting to public access, see REVERT_TO_PUBLIC.md');
   console.log('\n✨ Internal access system is ready!');

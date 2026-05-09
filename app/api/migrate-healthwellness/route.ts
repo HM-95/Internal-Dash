@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { notFoundUnlessDangerousApiEnabled } from '../../../lib/api-route-guards';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -100,6 +101,9 @@ function extractHealthCredentials(bio: string): string[] {
 }
 
 export async function POST(request: NextRequest) {
+  const blocked = notFoundUnlessDangerousApiEnabled();
+  if (blocked) return blocked;
+
   try {
     console.log('🚀 Starting healthwellness migration...');
     

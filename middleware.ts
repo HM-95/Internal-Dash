@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { jwtVerify } from 'jose'
+import { getJwtSecretBytes } from './lib/jwt-secret'
 
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
@@ -33,34 +34,38 @@ export async function middleware(req: NextRequest) {
       // Check for internal session cookie
       const sessionToken = req.cookies.get('internal_session')?.value;
       
-      console.log('Middleware checking session:', { 
-        path: pathname,
-        hasToken: !!sessionToken,
-        tokenLength: sessionToken?.length,
-        jwtSecret: !!process.env.JWT_SECRET
-      });
-      
-      if (!sessionToken) {
-        console.log('No session token found, redirecting to login');
-        return NextResponse.redirect(new URL('/login', req.url));
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Middleware checking session:', {
+          path: pathname,
+          hasToken: !!sessionToken,
+          tokenLength: sessionToken?.length,
+          jwtSecret: !!process.env.JWT_SECRET,
+        })
       }
-      
-      // Verify JWT token using jose (Edge Runtime compatible)
+
+      if (!sessionToken) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('No session token found, redirecting to login')
+        }
+        return NextResponse.redirect(new URL('/login', req.url))
+      }
+
       try {
-        const secret = new TextEncoder().encode(
-          process.env.JWT_SECRET || 'fallback-secret-change-in-production'
-        );
-        
-        const { payload } = await jwtVerify(sessionToken, secret);
-        
-        console.log('Middleware session check:', { 
-          username: payload.username,
-          accessGroup: payload.accessGroup,
-          path: pathname 
-        });
+        const secret = getJwtSecretBytes()
+        const { payload } = await jwtVerify(sessionToken, secret)
+
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Middleware session check:', {
+            username: payload.username,
+            accessGroup: payload.accessGroup,
+            path: pathname,
+          })
+        }
       } catch (jwtError) {
-        console.log('Invalid session token, redirecting to login:', jwtError);
-        return NextResponse.redirect(new URL('/login', req.url));
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Invalid session token, redirecting to login:', jwtError)
+        }
+        return NextResponse.redirect(new URL('/login', req.url))
       }
       
     } catch (err) {

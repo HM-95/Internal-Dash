@@ -1,239 +1,52 @@
-# Internal Access Control System
+# Internal access control
 
-This document describes the internal access control system implemented for the Buzzberry platform.
+Username/password authentication for team-only deployments, with group-based access (`code_access`, `non_code_access`, `guest_access`).
 
-## Overview
+## Database
 
-The platform has been converted from a public invitation-based system to an internal-only tool with group-based access control. This allows only authorized team members to access the platform using predefined username/password combinations.
+1. Run `database/migrations/internal_access_system.sql` in the Supabase SQL editor.
+2. Create users with **hashed** passwords — do not insert plaintext passwords into SQL.
 
-## Access Groups
+## Environment
 
-### 1. Code Access (Co-founders and Developers)
-- **Usernames**: `hari_m`, `odin_l`, `avik_r`
-- **Password**: `Havendev%2026`
-- **Access Level**: Full platform access
+See root `.env.example`. Required for this flow:
 
-### 2. Non-Code Access (Other Team Members)
-- **Username**: `member_haven`
-- **Password**: `Team@haven.2026`
-- **Access Level**: Standard platform access
+- `JWT_SECRET` — required in **production** for signing session JWTs (use a long random string).
+- `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
+- `INTERNAL_USERS_SEED` — JSON array of users to create (local/script only; never commit real passwords):
 
-### 3. Guest Access (Temporary Access)
-- **Username**: To be added as needed
-- **Password**: `Haven@guest.2026`
-- **Access Level**: Limited platform access
-
-## System Architecture
-
-### Database Schema
-
-#### `internal_users` Table
-```sql
-- id (UUID, Primary Key)
-- username (VARCHAR(50), Unique)
-- password_hash (TEXT)
-- access_group (VARCHAR(20)) -- 'code_access', 'non_code_access', 'guest_access'
-- is_active (BOOLEAN)
-- last_login (TIMESTAMP)
-- created_at (TIMESTAMP)
-- updated_at (TIMESTAMP)
+```json
+[
+  {
+    "username": "your_username",
+    "password": "use-a-strong-unique-password",
+    "access_group": "code_access"
+  }
+]
 ```
 
-#### `internal_access_logs` Table
-```sql
-- id (UUID, Primary Key)
-- username (VARCHAR(50))
-- action (VARCHAR(50)) -- 'login_attempt', 'login_success', 'login_failed', 'logout'
-- ip_address (VARCHAR(45))
-- user_agent (TEXT)
-- metadata (JSONB)
-- created_at (TIMESTAMP)
-```
+Optional HTTP seeding (only if you set a strong random secret):
 
-### Authentication Flow
+- `SETUP_USERS_SECRET` — send the same value in the `x-setup-secret` header when calling `POST /api/setup-users`.
 
-1. **Login Request**: User submits username/password
-2. **Password Verification**: bcrypt hash comparison
-3. **Session Creation**: JWT token with 8-hour expiry
-4. **Access Logging**: All attempts logged to database
-5. **Route Protection**: Middleware validates JWT on protected routes
-
-### Security Features
-
-- **Password Hashing**: bcrypt with 12 salt rounds
-- **JWT Tokens**: Secure session management
-- **HttpOnly Cookies**: Prevents XSS attacks
-- **Access Logging**: Comprehensive audit trail
-- **Rate Limiting**: Built into authentication system
-- **Session Expiry**: 8-hour automatic logout
-
-## Setup Instructions
-
-### 1. Database Setup
-
-Run the migration script in Supabase SQL editor:
-```sql
--- See database/migrations/internal_access_system.sql
-```
-
-### 2. Install Dependencies
+## Seed users (CLI)
 
 ```bash
-npm install
-```
-
-### 3. Environment Variables
-
-Create `.env.local` with:
-```env
-JWT_SECRET=your-secure-jwt-secret
-INTERNAL_AUTH_SECRET=your-internal-auth-secret
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-```
-
-### 4. Setup Initial Users
-
-```bash
+# .env.local must include INTERNAL_USERS_SEED and Supabase vars
 node scripts/setup-internal-users.js
 ```
 
-### 5. Start Development Server
+## Security notes
 
-```bash
-npm run dev
-```
+- **Production:** Set `JWT_SECRET`. Sessions will not work correctly without it.
+- **Debug API routes** (`/api/debug-*`): Disabled in production unless `ENABLE_DEBUG_API=true`.
+- **HTTP migration** (`/api/migrate-healthwellness`): Disabled in production unless `ENABLE_DANGEROUS_MIGRATIONS=true`.
+- Password verification and auth logging live in `app/lib/internal-auth.ts` and `app/api/internal-auth/route.ts`.
 
-## Usage
+## Access groups
 
-### Login Process
+- **code_access** — full internal tooling
+- **non_code_access** — standard internal user
+- **guest_access** — limited / temporary (extend in app as needed)
 
-1. Navigate to `/login`
-2. Enter username and password
-3. System validates credentials
-4. Creates secure session
-5. Redirects to dashboard
-
-### Access Control
-
-- **Code Access**: Full platform functionality
-- **Non-Code Access**: Standard user features
-- **Guest Access**: Limited features (configurable)
-
-### Session Management
-
-- Sessions expire after 8 hours of inactivity
-- Users are automatically logged out
-- All login attempts are logged
-- Failed attempts are tracked
-
-## Monitoring
-
-### Access Logs
-
-Monitor user activity through the `internal_access_logs` table:
-- Login attempts (successful and failed)
-- Logout events
-- IP addresses and user agents
-- Timestamps for all activities
-
-### Security Monitoring
-
-- Track failed login attempts
-- Monitor unusual access patterns
-- Review access logs regularly
-- Update passwords periodically
-
-## Adding New Users
-
-### Adding Guest Users
-
-1. Connect to Supabase database
-2. Insert new user record:
-```sql
-INSERT INTO internal_users (username, password_hash, access_group) 
-VALUES ('guest_username', 'hashed_password', 'guest_access');
-```
-
-3. Hash password using bcrypt (12 rounds)
-4. Test login with new credentials
-
-### Password Management
-
-- Use strong, unique passwords
-- Hash passwords with bcrypt (12+ rounds)
-- Update passwords regularly
-- Never store plain text passwords
-
-## Disabled Features
-
-The following features have been disabled but preserved for potential future use:
-
-- **Onboarding Flow**: Redirects to dashboard
-- **Stripe Integration**: All payment features disabled
-- **Invitation System**: Redirects to login
-- **OAuth (Google Sign-in)**: Disabled
-- **Public Registration**: No longer available
-
-## File Structure
-
-```
-app/
-├── api/internal-auth/          # Internal authentication API
-├── lib/internal-auth.ts        # Authentication utilities
-├── login/                      # Updated login page
-├── dashboard/                  # Updated dashboard layout
-└── components/                 # UI components (preserved)
-
-database/migrations/
-└── internal_access_system.sql  # Database schema
-
-scripts/
-├── setup-internal-access.js    # Setup script
-└── setup-internal-users.js     # User creation script
-
-REVERT_TO_PUBLIC.md            # Re-enablement instructions
-```
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Login Fails**: Check username/password combination
-2. **Session Expired**: Re-login required
-3. **Database Connection**: Verify Supabase credentials
-4. **JWT Errors**: Check JWT_SECRET environment variable
-
-### Debug Steps
-
-1. Check browser console for errors
-2. Verify environment variables
-3. Check Supabase database connection
-4. Review access logs in database
-5. Test with different user accounts
-
-## Security Best Practices
-
-1. **Regular Password Updates**: Change passwords quarterly
-2. **Access Monitoring**: Review logs weekly
-3. **Environment Security**: Keep secrets secure
-4. **Database Security**: Use RLS policies
-5. **Session Management**: Monitor active sessions
-
-## Support
-
-For issues or questions:
-1. Check this documentation first
-2. Review access logs for clues
-3. Test with different user accounts
-4. Verify environment configuration
-5. Check Supabase dashboard for errors
-
-## Future Considerations
-
-- **Multi-Factor Authentication**: Add 2FA support
-- **Role-Based Permissions**: Granular access control
-- **Session Management UI**: Admin panel for sessions
-- **Advanced Monitoring**: Real-time access monitoring
-- **Integration**: Connect with existing identity systems
+Tables: `internal_users`, `internal_access_logs` (see migration file for schema).

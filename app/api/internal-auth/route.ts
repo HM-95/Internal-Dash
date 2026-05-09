@@ -4,11 +4,18 @@ import { authenticateUser, setSessionCookie, clearSessionCookie, logAccessAttemp
 export async function POST(request: NextRequest) {
   try {
     const { username, password } = await request.json();
-    
-    console.log('Internal auth API called with:', { username, passwordLength: password?.length });
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Internal auth API called with:', {
+        username,
+        passwordLength: password?.length,
+      });
+    }
 
     if (!username || !password) {
-      console.log('Missing credentials:', { username, password: !!password });
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Missing credentials:', { username, hasPassword: !!password });
+      }
       await logAccessAttempt(username || 'unknown', 'login_failed', request, { error: 'Missing credentials' });
       return NextResponse.json(
         { error: 'Username and password are required' },
@@ -19,13 +26,15 @@ export async function POST(request: NextRequest) {
     // Log login attempt
     await logAccessAttempt(username, 'login_attempt', request);
 
-    // Authenticate user
-    console.log('Attempting to authenticate user:', username);
     const user = await authenticateUser(username, password);
-    console.log('Authentication result:', { user: !!user, username: user?.username });
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Authentication result:', { user: !!user, username: user?.username });
+    }
 
     if (!user) {
-      console.log('Authentication failed for user:', username);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Authentication failed for user:', username);
+      }
       await logAccessAttempt(username, 'login_failed', request, { error: 'Invalid credentials' });
       return NextResponse.json(
         { error: 'Invalid username or password' },
@@ -33,8 +42,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create session
-    console.log('Creating session for user:', user.username);
     const sessionData = {
       username: user.username,
       accessGroup: user.accessGroup,
@@ -42,12 +49,9 @@ export async function POST(request: NextRequest) {
       userId: user.id
     };
 
-    console.log('Session data:', sessionData);
-    
     let token: string;
     try {
       token = await setSessionCookie(sessionData);
-      console.log('Session cookie set successfully');
     } catch (sessionError) {
       console.error('Error setting session cookie:', sessionError);
       return NextResponse.json(
@@ -58,12 +62,9 @@ export async function POST(request: NextRequest) {
 
     try {
       await logAccessAttempt(username, 'login_success', request, { accessGroup: user.accessGroup });
-      console.log('Access log recorded successfully');
     } catch (logError) {
       console.error('Error logging access:', logError);
     }
-
-    console.log('Returning success response with cookie');
     
     // Create response with cookie header
     const response = NextResponse.json({

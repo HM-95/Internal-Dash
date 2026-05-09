@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { notFoundUnlessDebugApiEnabled } from '../../../lib/api-route-guards';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -7,6 +8,9 @@ const supabase = createClient(
 );
 
 export async function GET(request: NextRequest) {
+  const blocked = notFoundUnlessDebugApiEnabled();
+  if (blocked) return blocked;
+
   try {
     console.log('🔍 Debug: Checking email data in database...');
     

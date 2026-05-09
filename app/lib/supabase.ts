@@ -1,10 +1,11 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsYWNlaG9sZGVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE2MDUxODU5MzQsImV4cCI6MTkyMDc2MTkzNH0.s7rK5dNtuK3lR6q3XGtCb3bSWMp0uQkM_2ZJN9S9O9Y';
+const supabaseUrl =
+  process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://your-project.supabase.co';
+/** Non-secret anon key must come from env at runtime; placeholder is invalid on purpose for local builds. */
+const supabaseAnonKey =
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'set-NEXT_PUBLIC_SUPABASE_ANON_KEY-in-env';
 
-// Create client - during build time without env vars, this will use placeholder values
-// Vercel will inject the real environment variables at runtime
 export const supabase = createClient(supabaseUrl, supabaseAnonKey) as SupabaseClient;
 
 // Database types matching your exact Supabase schema
