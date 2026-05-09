@@ -1,0 +1,1189 @@
+'use client'
+
+import React, { useState, useEffect, useRef } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Button } from "@/components/ui/button";
+import { ChatHistorySection } from "../BuzzberryDashboard/sections/ChatHistorySection";
+import { useAIChat } from '@/hooks/useAIChat'
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { User } from '@supabase/supabase-js'
+import CreatorListView from "@/components/sections/CreatorListSection/CreatorListView";
+import PaginationControls from "@/components/sections/CreatorListSection/PaginationControls";
+import { transformCreatorData } from '@/utils/creatorListIntegration';
+
+interface Message {
+  id: string
+  content: string
+  role: 'user' | 'assistant'
+  timestamp: string
+}
+
+interface BuzzberryChatPageProps {
+  initialPrompt?: string;
+  onBack?: () => void;
+  user?: User;
+}
+
+interface CreatorRowProps {
+  creator: any;
+  index: number;
+  isExpanded: boolean;
+  onToggleExpand: (creatorId: string) => void;
+  searchQuery: string;
+  isSelected: boolean;
+  onToggleSelection: (creatorId: string) => void;
+}
+
+const CreatorRow: React.FC<CreatorRowProps> = ({ creator, index, isExpanded, onToggleExpand, searchQuery, isSelected, onToggleSelection }) => {
+  const c = transformCreatorData(creator);
+  const [aiExplanation, setAiExplanation] = useState<string>('');
+  const [isLoadingExplanation, setIsLoadingExplanation] = useState(false);
+  const creatorId = creator?.id || creator?.username || `creator-${index}`;
+
+  useEffect(() => {
+    if (isExpanded && !aiExplanation && !isLoadingExplanation) {
+      setIsLoadingExplanation(true);
+      // For now, generate a simple explanation
+      setTimeout(() => {
+        setAiExplanation(`This creator matches your search for "${searchQuery}" because they specialize in ${c.niches?.[0]?.name || 'content creation'} with a strong following of ${c.followers >= 1000000 ? `${(c.followers / 1000000).toFixed(1)}M` : c.followers >= 1000 ? `${(c.followers / 1000).toFixed(0)}K` : c.followers} followers and an engagement rate of ${(c.engagement_rate * 100).toFixed(2)}%.`);
+        setIsLoadingExplanation(false);
+      }, 1000);
+    }
+  }, [isExpanded, aiExplanation, isLoadingExplanation, c, searchQuery]);
+
+  const handleRowClick = () => {
+    onToggleExpand(creatorId);
+  };
+
+  const handleCheckboxClick = (e: React.MouseEvent | React.ChangeEvent<HTMLInputElement>) => {
+    e.stopPropagation();
+    onToggleSelection(creatorId);
+  };
+
+  const handleDMClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    // Implement DM functionality
+    console.log('DM clicked for:', c.name);
+  };
+
+  const handleEmailClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    // Implement email functionality
+    console.log('Email clicked for:', c.name);
+  };
+
+  return (
+    <>
+      <div 
+        className="creator-list-row cursor-pointer transition-all duration-200" 
+        style={{
+          backgroundColor: '#0F1419',
+          color: '#e5e7eb',
+          borderBottomColor: '#374151',
+          borderBottom: '1px solid #374151',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          padding: '0.5rem 0.75rem',
+          position: 'relative',
+          borderLeft: isSelected ? '4px solid #3b82f6' : 'none'
+        }}
+        onClick={handleRowClick}
+      >
+        {/* Expand indicator */}
+        <div className="flex justify-center" style={{width: '20px'}}>
+          <div className={`transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 18L15 12L9 6" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+        </div>
+        
+        <div className="creator-info gap-1" style={{gap: '0.25rem', width: '180px'}}>
+          <div className="creator-avatar">
+            {c.avatar_url ? (
+              <img 
+                src={c.avatar_url} 
+                alt={c.name} 
+                className="creator-profile-image" 
+                style={{width: '1.5rem', height: '1.5rem'}}
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                  const parent = target.parentElement;
+                  if (parent) {
+                    const fallback = parent.querySelector('.creator-initials') as HTMLElement;
+                    if (fallback) fallback.style.display = 'flex';
+                  }
+                }}
+              />
+            ) : null}
+            <div className={`creator-initials ${c.avatar_url ? 'hidden' : ''}`} style={{
+              display: c.avatar_url ? 'none' : 'flex', 
+              width: '1.5rem', 
+              height: '1.5rem', 
+              fontSize: '0.6rem',
+              backgroundColor: '#4b5563',
+              color: '#e5e7eb',
+              borderRadius: '50%',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              {c.initials}
+            </div>
+          </div>
+          <div className="creator-details gap-0.5" style={{gap: '0.1rem'}}>
+            <span className="creator-name text-xs" style={{fontSize: '0.7rem', color: '#e5e7eb'}}>{c.name}</span>
+            <div className="creator-username">
+              <span className="creator-username-text text-[9px]" style={{color: '#9ca3af'}}>{c.username_tag}</span>
+              <div className="social-media-icons">
+                {c.social_media.map((social: any, index: number) => {
+                  const iconMap: { [key: string]: string } = {
+                    'instagram': '/Instagram logo.svg',
+                    'tiktok': '/TikTok Logo.svg',
+                    'youtube': '/Youtube logo.svg',
+                    'twitter': '/X logo.svg',
+                    'x': '/X logo.svg',
+                    'linkedin': '/Linkedin logo.svg'
+                  };
+                  const iconSrc = iconMap[social.platform] || '/Instagram logo.svg';
+                  return <img key={index} src={iconSrc} alt={social.platform} className="social-media-icon" style={{width: '0.6rem', height: '0.6rem', filter: 'invert(1)'}} />;
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div className="match-score" style={{
+          backgroundColor: 'transparent',
+          border: '1px solid #22c55e',
+          color: '#86efac',
+          width: '80px',
+          textAlign: 'center',
+          padding: '0.1rem 0.2rem'
+        }}>{c.match_score}</div>
+        
+        <div className="metric-column" style={{width: '70px', textAlign: 'center'}}>
+          <div style={{color: '#e5e7eb'}}>{c.followers >= 1000000 ? `${(c.followers / 1000000).toFixed(1)}M` : c.followers >= 1000 ? `${(c.followers / 1000).toFixed(0)}K` : c.followers}</div>
+          <div className="metric-change">
+            <svg className={`metric-change-icon ${c.followers_change_type}`} viewBox="0 0 24 24" fill="none" style={{width: '0.5rem', height: '0.5rem'}}>
+              <path d={c.followers_change_type === 'positive' ? "M7 14L12 9L17 14" : "M7 10L12 15L17 10"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <span className={`metric-change-text ${c.followers_change_type}`} style={{fontSize: '0.5rem', color: c.followers_change_type === 'positive' ? '#86efac' : c.followers_change_type === 'negative' ? '#fca5a5' : '#9ca3af'}}>{c.followers_change}%</span>
+          </div>
+        </div>
+        
+        <div className="metric-column" style={{width: '70px', textAlign: 'center'}}>
+          <div style={{color: '#e5e7eb'}}>{c.avg_views >= 1000000 ? `${(c.avg_views / 1000000).toFixed(1)}M` : c.avg_views >= 1000 ? `${(c.avg_views / 1000).toFixed(0)}K` : c.avg_views}</div>
+          <div className="metric-change">
+            <svg className={`metric-change-icon ${c.avg_views_change_type}`} viewBox="0 0 24 24" fill="none" style={{width: '0.5rem', height: '0.5rem'}}>
+              <path d={c.avg_views_change_type === 'positive' ? "M7 14L12 9L17 14" : "M7 10L12 15L17 10"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <span className={`metric-change-text ${c.avg_views_change_type}`} style={{fontSize: '0.5rem', color: c.avg_views_change_type === 'positive' ? '#86efac' : c.avg_views_change_type === 'negative' ? '#fca5a5' : '#9ca3af'}}>{c.avg_views_change}%</span>
+          </div>
+        </div>
+        
+        <div className="metric-column" style={{width: '80px', textAlign: 'center'}}>
+          <div style={{color: '#e5e7eb'}}>{(c.engagement_rate * 100).toFixed(2)}%</div>
+          <div className="metric-change">
+            <svg className={`metric-change-icon ${c.engagement_change_type}`} viewBox="0 0 24 24" fill="none" style={{width: '0.5rem', height: '0.5rem'}}>
+              <path d={c.engagement_change_type === 'positive' ? "M7 14L12 9L17 14" : "M7 10L12 15L17 10"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <span className={`metric-change-text ${c.engagement_change_type}`} style={{fontSize: '0.5rem', color: c.engagement_change_type === 'positive' ? '#86efac' : c.engagement_change_type === 'negative' ? '#fca5a5' : '#9ca3af'}}>{c.engagement_change}%</span>
+          </div>
+        </div>
+        
+        <div className="category-badges flex-col gap-0.5" style={{gap: '0.05rem', width: '100px', textAlign: 'center'}}>
+          {c.niches && c.niches.length > 0 ? c.niches.map((niche: any, index: number) => {
+            const isPrimary = niche.isPrimary;
+            let color, borderColor;
+            
+            if (isPrimary) {
+              if (niche.type === 'finance' || niche.type === 'investing') {
+                color = '#93c5fd';
+                borderColor = '#3b82f6';
+              } else if (niche.type === 'trading') {
+                color = '#6ee7b7';
+                borderColor = '#10b981';
+              } else if (niche.type === 'technology') {
+                color = '#c4b5fd';
+                borderColor = '#a855f7';
+              } else {
+                color = '#93c5fd';
+                borderColor = '#3b82f6';
+              }
+            } else {
+              if (niche.type === 'crypto') {
+                color = '#fcd34d';
+                borderColor = '#f59e0b';
+              } else if (niche.type === 'stock') {
+                color = '#fdba74';
+                borderColor = '#f97316';
+              } else {
+                color = '#fcd34d';
+                borderColor = '#f59e0b';
+              }
+            }
+            
+            return (
+              <div key={index} className={`category-badge ${niche.type} text-[9px]`} style={{
+                fontSize: '0.6rem', 
+                padding: '0.05rem 0.2rem',
+                backgroundColor: 'transparent',
+                border: '1px solid',
+                color: color,
+                borderColor: borderColor,
+                borderRadius: '0.25rem',
+                textAlign: 'center',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}>{niche.name}</div>
+            );
+          }) : (
+            <div className="category-badge general text-[9px]" style={{
+              fontSize: '0.6rem', 
+              padding: '0.05rem 0.2rem',
+              backgroundColor: 'transparent',
+              border: '1px solid #6b7280',
+              color: '#9ca3af',
+              borderRadius: '0.25rem',
+              textAlign: 'center'
+            }}>General</div>
+          )}
+        </div>
+        
+        <div className="text-center" style={{width: '80px'}}>
+          <div className="location-text text-xs" style={{fontSize: '0.65rem', color: '#9ca3af'}}>{c.location}</div>
+        </div>
+        
+        <div className="donut-chart-container" style={{width: '80px'}}>
+          <div className="donut-chart" style={{width: '24px', height: '24px', margin: '0 auto', position: 'relative'}}>
+            <svg width="24" height="24">
+              <defs>
+                <linearGradient id={`gradient-${c.buzz_score}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#FC4C4B" />
+                  <stop offset="50%" stopColor="#CD45BA" />
+                  <stop offset="100%" stopColor="#6E57FF" />
+                </linearGradient>
+              </defs>
+              <circle cx="12" cy="12" r="10" stroke="#E5E7EB" strokeWidth="2" fill="transparent" className="donut-chart-circle-bg" />
+              <circle cx="12" cy="12" r="10" stroke={`url(#gradient-${c.buzz_score})`} strokeWidth="2" fill="transparent" strokeDasharray="62.8" strokeDashoffset={62.8 - (c.buzz_score / 100) * 62.8} strokeLinecap="round" />
+            </svg>
+            <div className="donut-chart-score" style={{fontSize: '0.5rem', color: '#d1d5db', position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)'}}>{c.buzz_score}%</div>
+          </div>
+        </div>
+        
+        {/* Selection Checkbox */}
+        <div className="flex justify-center" style={{width: '20px'}}>
+          <input 
+            type="checkbox" 
+            checked={isSelected}
+            onChange={handleCheckboxClick}
+            onClick={handleCheckboxClick}
+            className="creator-list-checkbox" 
+            style={{
+              width: '0.8rem', 
+              height: '0.8rem', 
+              backgroundColor: isSelected ? '#3b82f6' : 'transparent', 
+              borderColor: isSelected ? '#3b82f6' : '#4b5563',
+              border: '1px solid',
+              borderRadius: '2px',
+              cursor: 'pointer'
+            }} 
+          />
+        </div>
+      </div>
+      
+      {/* Expanded Content */}
+      {isExpanded && (
+        <div className="expanded-content" style={{
+          backgroundColor: '#0F1419',
+          borderBottom: '1px solid #374151',
+          padding: '1rem',
+          animation: 'slideDown 0.3s ease-out'
+        }}>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Creator Bio */}
+            <div className="creator-bio">
+              <h4 className="text-sm font-semibold text-gray-200 mb-2">Bio</h4>
+              <p className="text-xs text-gray-400 leading-relaxed">
+                {creator.bio || creator.description || 'No bio available'}
+              </p>
+            </div>
+            
+            {/* AI Explanation */}
+            <div className="ai-explanation">
+              <h4 className="text-sm font-semibold text-gray-200 mb-2">Why This Creator Matches</h4>
+              <div className="text-xs text-gray-400 leading-relaxed">
+                {isLoadingExplanation ? (
+                  <div className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-500"></div>
+                    <span>Generating explanation...</span>
+                  </div>
+                ) : (
+                  <p>{aiExplanation}</p>
+                )}
+              </div>
+            </div>
+            
+            {/* Contact Actions */}
+            <div className="contact-actions">
+              <h4 className="text-sm font-semibold text-gray-200 mb-2">Contact</h4>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={handleDMClick}
+                  className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-md transition-colors"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M21 15C21 15.5304 20.7893 16.0391 20.4142 16.4142C20.0391 16.7893 19.5304 17 19 17H7L3 21V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H19C19.5304 3 20.0391 3.21071 20.4142 3.58579C20.7893 3.96086 21 4.46957 21 5V15Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  Send DM
+                </button>
+                <button
+                  onClick={handleEmailClick}
+                  className="flex items-center gap-2 px-3 py-2 bg-gray-600 hover:bg-gray-700 text-white text-xs rounded-md transition-colors"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M4 4H20C21.1 4 22 4.9 22 6V18C22 19.1 21.1 20 20 20H4C2.9 20 2 19.1 2 18V6C2 4.9 2.9 4 4 4Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <polyline points="22,6 12,13 2,6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  Send Email
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
+export const BuzzberryChatPage = ({ initialPrompt, onBack, user }: BuzzberryChatPageProps): JSX.Element => {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [inputValue, setInputValue] = useState("");
+  const [isChatHistoryOpen, setIsChatHistoryOpen] = useState(false);
+  const [isPageLoaded, setIsPageLoaded] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const initializedRef = useRef(false);
+
+  // AI Chat management
+  const { 
+    messages, 
+    isLoading, 
+    sessionId, 
+    chatHistory, 
+    streamingMessage,
+    sendMessage: aiSendMessage, 
+    clearMessages, 
+    removeChat, 
+    clearHistory, 
+    formatTimestamp,
+    loadChatSession,
+    refreshChatHistory
+  } = useAIChat();
+
+  // Add state for influencer recommendations and pagination
+  const [expandedCreators, setExpandedCreators] = useState<Set<string>>(new Set());
+  const [currentSearchQuery, setCurrentSearchQuery] = useState<string>('');
+  const [selectedCreators, setSelectedCreators] = useState<Set<string>>(new Set());
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [isLoadingCreators, setIsLoadingCreators] = useState<boolean>(false);
+  const [allCreators, setAllCreators] = useState<any[]>([]);
+  const creatorsPerPage = 5;
+
+  // Calculate paginated creators
+  const startIndex = (currentPage - 1) * creatorsPerPage;
+  const endIndex = startIndex + creatorsPerPage;
+  const influencers = allCreators.slice(startIndex, endIndex);
+  const totalPages = Math.ceil(allCreators.length / creatorsPerPage);
+
+  // Update influencers when allCreators changes
+  useEffect(() => {
+    if (allCreators.length > 0) {
+      setIsLoadingCreators(false);
+    }
+  }, [allCreators]);
+
+  // Handle page change
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+    // Scroll to top of creator list
+    const creatorList = document.querySelector('.creator-list-container');
+    if (creatorList) {
+      creatorList.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  // Update the AI response handling to set all creators
+  const handleAIResponse = (response: any) => {
+    if (response.influencers && Array.isArray(response.influencers)) {
+      setAllCreators(response.influencers);
+      setCurrentPage(1); // Reset to first page when new results come in
+      setIsLoadingCreators(false);
+    }
+  };
+
+  // Update the sendMessage function to show loading state and handle creators
+  const sendMessageWithCreators = async (message: string) => {
+    if (!message.trim()) return;
+
+    // Use the sendMessage from useAIChat hook
+    aiSendMessage(message); // This will handle setting messages and isLoading
+
+    setIsLoadingCreators(true); // Show loading for creators
+
+    try {
+      const response = await fetch('/api/ai-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message,
+          sessionId: sessionId,
+          wantsJson: true
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to send message');
+
+      const data = await response.json();
+      
+      if (data.influencers && Array.isArray(data.influencers)) {
+        setAllCreators(data.influencers);
+        setCurrentPage(1);
+      }
+
+      // aiMessage is handled by useAIChat hook
+      setIsLoadingCreators(false);
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setIsLoadingCreators(false);
+    }
+  };
+
+  // Helper function to get user avatar
+  const getUserAvatar = () => {
+    if (!user) return null;
+    
+    // Try different possible locations for the avatar
+    return user.user_metadata?.avatar_url || 
+           user.user_metadata?.picture ||
+           null;
+  };
+
+  // Helper function to get user initials
+  const getUserInitials = () => {
+    if (!user) return 'U';
+    
+    const displayName = getUserDisplayName();
+    if (displayName === 'User') {
+      return user.email?.charAt(0)?.toUpperCase() || 'U';
+    }
+    
+    return displayName.charAt(0).toUpperCase();
+  };
+
+  // Helper function to get user display name
+  const getUserDisplayName = () => {
+    if (!user) return 'User';
+    
+    // Try different possible locations for the name
+    const name = user.user_metadata?.full_name || 
+                 user.user_metadata?.name ||
+                 user.user_metadata?.display_name ||
+                 user.user_metadata?.given_name + ' ' + user.user_metadata?.family_name ||
+                 user.email?.split('@')[0] ||
+                 'User';
+    
+    return name;
+  };
+
+  // Set page as loaded after a brief delay to ensure smooth transition
+  useEffect(() => {
+      setIsPageLoaded(true);
+  }, []);
+
+  // Initialize with the initial prompt if provided or load existing chat session
+  useEffect(() => {
+    if (!sessionId) return; // Don't run without session
+    
+    const promptFromUrl = searchParams.get('prompt');
+    const sessionIdFromUrl = searchParams.get('sessionId');
+    const prompt = initialPrompt || promptFromUrl;
+    
+    // If we have a sessionId in URL, load that chat session
+    if (sessionIdFromUrl && !initializedRef.current) {
+      initializedRef.current = true;
+      
+      // Load the specific chat session immediately
+      loadChatSession(sessionIdFromUrl);
+    }
+    // If we have a prompt, send it as a new message
+    else if (prompt && !initializedRef.current) {
+      initializedRef.current = true;
+      
+      // Send the message immediately
+      sendMessageWithCreators(prompt);
+    }
+  }, [initialPrompt, searchParams, sessionId, loadChatSession]);
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages]);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+    }
+  }, [inputValue]);
+
+  // Refresh chat history when component mounts
+  useEffect(() => {
+    console.log('Refreshing chat history on mount...');
+    refreshChatHistory();
+  }, [refreshChatHistory]);
+
+  // Refresh chat history when sidebar is opened
+  useEffect(() => {
+    if (isChatHistoryOpen) {
+      console.log('Refreshing chat history when sidebar opened...');
+      refreshChatHistory();
+    }
+  }, [isChatHistoryOpen, refreshChatHistory]);
+
+  // Fetch influencers when AI response is received or page changes
+  useEffect(() => {
+    const fetchInfluencers = async () => {
+      const lastAssistantMsg = messages.filter(msg => msg.role === 'assistant').pop();
+      if (lastAssistantMsg) {
+        const res = await fetch(`/api/ai-chat?json=1&page=${currentPage}&pageSize=${creatorsPerPage}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: lastAssistantMsg.content,
+            sessionId,
+            page: currentPage,
+            pageSize: creatorsPerPage,
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setAllCreators(data.influencers || []);
+          // setInfluencerTotal(data.total || 0); // This state is no longer needed
+          // setAiResponseText(data.aiResponseText || ''); // This state is no longer needed
+        } else {
+          console.error('Failed to fetch influencers:', res.statusText);
+          setAllCreators([]);
+          // setInfluencerTotal(0); // This state is no longer needed
+          // setAiResponseText(''); // This state is no longer needed
+        }
+      } else {
+        setAllCreators([]);
+        // setInfluencerTotal(0); // This state is no longer needed
+        // setAiResponseText(''); // This state is no longer needed
+      }
+    };
+    fetchInfluencers();
+  }, [messages, sessionId, currentPage, creatorsPerPage]);
+
+  // Send message using AI chat hook
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!inputValue.trim() || isLoading) return;
+    
+    const message = inputValue.trim();
+    setCurrentSearchQuery(message); // Capture the search query
+    setInputValue(''); // Clear input immediately
+    
+    await sendMessageWithCreators(message);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (!inputValue.trim() || isLoading) return;
+      
+      const message = inputValue.trim();
+      setCurrentSearchQuery(message); // Capture the search query
+      setInputValue(''); // Clear input immediately
+      
+      sendMessageWithCreators(message);
+    }
+  };
+
+  const handleBackClick = () => {
+    if (onBack) {
+      onBack();
+    } else {
+      router.push('/dashboard/aisearch');
+    }
+  };
+
+  // Function to render markdown formatting
+  const renderMarkdown = (text: string) => {
+    return text
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/^- (.*$)/gim, '<li>$1</li>')
+      .replace(/\n\n/g, '<br><br>')
+      .replace(/\n/g, '<br>');
+  };
+
+  const handleToggleCreatorExpand = (creatorId: string) => {
+    setExpandedCreators(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(creatorId)) {
+        newSet.delete(creatorId);
+      } else {
+        newSet.add(creatorId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleToggleCreatorSelection = (creatorId: string) => {
+    setSelectedCreators(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(creatorId)) {
+        newSet.delete(creatorId);
+      } else {
+        newSet.add(creatorId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = () => {
+    const allCreatorIds = allCreators.map((creator: any, index: number) => creator?.id || creator?.username || `creator-${index}`);
+    
+    // If all creators are already selected, unselect all
+    if (selectedCreators.size === allCreatorIds.length) {
+      setSelectedCreators(new Set());
+    } else {
+      // Otherwise, select all
+      setSelectedCreators(new Set(allCreatorIds));
+    }
+  };
+
+  const handleSaveSelectedToList = () => {
+    console.log('Saving selected creators to list:', Array.from(selectedCreators));
+    // TODO: Implement save to list functionality
+    alert(`Saved ${selectedCreators.size} creators to your list!`);
+  };
+
+  return (
+    <div className={`min-h-screen bg-black flex flex-col transition-opacity duration-300 ${isPageLoaded ? 'opacity-100' : 'opacity-0'}`}>
+
+      
+      {/* Top navigation */}
+      <div className="fixed top-0 left-0 right-0 z-40 flex justify-between items-center p-2 xs:p-4 bg-black/80 backdrop-blur-sm">
+        {/* Back button */}
+        <Button
+          variant="outline"
+          onClick={handleBackClick}
+          className="flex items-center gap-1 xs:gap-2 px-2 xs:px-3.5 py-2 xs:py-3 bg-[#0f1419] rounded-[34px] border-gray-700 hover:bg-[#1a1f2e]"
+        >
+          <img 
+            className="w-4 h-4" 
+            alt="Back arrow" 
+            src="/Arrow down button vector.png"
+            style={{ transform: 'rotate(90deg)' }}
+          />
+          <span className="hidden xs:inline font-medium text-white text-sm tracking-[-0.08px] leading-5">
+            Back
+          </span>
+        </Button>
+
+        {/* Right side buttons */}
+        <div className="flex gap-1 xs:gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setIsChatHistoryOpen(!isChatHistoryOpen)}
+            className="flex items-center gap-1 px-2 xs:px-3.5 py-2 xs:py-3 bg-[#0f1419] rounded-[34px] border-gray-700 hover:bg-[#1a1f2e]"
+          >
+            <img
+              className="w-5 xs:w-6 h-5 xs:h-6"
+              alt="Chat history icon"
+              src="/Chat History.svg"
+            />
+            <span className="hidden sm:inline font-medium text-white text-sm tracking-[-0.08px] leading-5">
+              Chat History
+            </span>
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={() => {
+              // Clear current chat and start fresh
+              clearMessages();
+              router.push('/dashboard/aisearch');
+            }}
+            className="flex items-center justify-center w-12 h-12 bg-[#0f1419] rounded-full border-gray-700 hover:bg-[#1a1f2e] p-0"
+          >
+            <img 
+              className="w-6 h-6" 
+              alt="Plus icon" 
+              src="/plus-icon.svg"
+            />
+          </Button>
+        </div>
+      </div>
+
+      {/* Main chat area */}
+      <div className="flex-1 flex flex-col pt-16 xs:pt-20">
+        {/* Messages container */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="max-w-4xl mx-auto px-2 xs:px-4">
+            {messages.length === 0 ? (
+              // Empty state
+              <div className="flex flex-col items-center justify-center h-full text-center py-10 xs:py-20">
+                <div className="w-16 h-16 bg-[#0f1419] rounded-full flex items-center justify-center mb-4 overflow-hidden">
+                  <video
+                    className="w-full h-full object-cover"
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    preload="auto"
+                  >
+                    <source 
+                      src="https://epwm2xeeqm8soa6z.public.blob.vercel-storage.com/Buzzberry%20AI%20Chat.webm" 
+                      type="video/webm" 
+                    />
+                    <img
+                      className="w-8 h-8"
+                      alt="Buzzberry AI"
+                      src="/AI Blurb Icon.svg"
+                    />
+                  </video>
+                </div>
+                <h2 className="font-medium text-white text-lg xs:text-xl mb-2">
+                  Start a conversation
+                </h2>
+                <p className="font-normal text-[#99a0ad] text-xs xs:text-sm px-4">
+                  Ask me about influencers, creators, or audience insights
+                </p>
+              </div>
+            ) : (
+              // Messages
+              <div className="py-6 space-y-6">
+                {messages.map((msg, idx) => {
+                  if (msg.role === 'assistant' && idx === messages.length - 1 && influencers.length > 0) {
+                    // Render the AI message with integrated table for the latest assistant message
+                    return (
+                      <div key={msg.id || idx} className="w-full">
+                        <div className="flex justify-start">
+                          <div className="flex items-start gap-2 xs:gap-3 max-w-[85%] xs:max-w-[70%] flex-row">
+                            {/* AI Avatar */}
+                            <div className="flex-shrink-0">
+                              <div className="w-11 xs:w-14 h-11 xs:h-14 rounded-full overflow-hidden relative">
+                                <video
+                                  className="w-full h-full object-cover"
+                                  autoPlay
+                                  loop
+                                  muted
+                                  playsInline
+                                  preload="auto"
+                                >
+                                  <source
+                                    src="https://epwm2xeeqm8soa6z.public.blob.vercel-storage.com/Buzzberry%20AI%20Chat.webm"
+                                    type="video/webm"
+                                  />
+                                  <div className="w-11 xs:w-14 h-11 xs:h-14 bg-[#0f1419] rounded-full flex items-center justify-center">
+                                    <img
+                                      className="w-6 xs:w-8 h-6 xs:h-8"
+                                      alt="Buzzberry AI"
+                                      src="/AI Blurb Icon.svg"
+                                    />
+                                  </div>
+                                </video>
+                              </div>
+                            </div>
+
+                            {/* AI message content with integrated table */}
+                            <div className="text-white">
+                              <div className="font-normal text-sm xs:text-[15px] leading-6 xs:leading-7 whitespace-pre-wrap [&>strong]:font-semibold [&>ul]:mt-2 [&>ul]:mb-2 [&>li]:ml-4">
+                                <span dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
+                              </div>
+                              
+                                                              {/* Creator List with Loading State */}
+                                {isLoadingCreators ? (
+                                  <div className="mt-3 max-w-4xl w-full">
+                                    <div className="creator-list-container" style={{overflowX: 'hidden'}}>
+                                      <div className="creator-list-table ai-mode" style={{minWidth: '0', backgroundColor: '#0F1419', borderRadius: '10px'}}>
+                                        {/* Loading Header */}
+                                        <div className="creator-list-header" style={{
+                                          backgroundColor: '#0F1419',
+                                          color: '#e5e7eb',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '0.5rem',
+                                          padding: '0.5rem 0.75rem',
+                                          borderBottomColor: '#374151',
+                                          borderBottom: '1px solid #374151',
+                                          borderTopLeftRadius: '10px',
+                                          borderTopRightRadius: '10px'
+                                        }}>
+                                          <div style={{width: '20px'}}></div>
+                                          <div style={{width: '180px'}}>Creator</div>
+                                          <div style={{width: '80px', textAlign: 'center'}}>Match</div>
+                                          <div style={{width: '70px', textAlign: 'center'}}>Followers</div>
+                                          <div style={{width: '70px', textAlign: 'center'}}>Views</div>
+                                          <div style={{width: '80px', textAlign: 'center'}}>Engagement</div>
+                                          <div style={{width: '100px', textAlign: 'center'}}>Niche</div>
+                                          <div style={{width: '80px', textAlign: 'center'}}>Location</div>
+                                          <div style={{width: '80px', textAlign: 'center'}}>Buzz Score</div>
+                                          <div style={{width: '20px'}}></div>
+                                        </div>
+                                        
+                                        {/* Loading Rows */}
+                                        {[...Array(5)].map((_, index) => (
+                                          <div key={index} className="creator-list-row" style={{
+                                            backgroundColor: '#0F1419',
+                                            color: '#e5e7eb',
+                                            borderBottomColor: '#374151',
+                                            borderBottom: '1px solid #374151',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.5rem',
+                                            padding: '0.5rem 0.75rem',
+                                            position: 'relative'
+                                          }}>
+                                            <div style={{width: '20px'}}>
+                                              <div className="animate-pulse bg-gray-600 rounded" style={{width: '12px', height: '12px'}}></div>
+                                            </div>
+                                            <div className="creator-info gap-1" style={{gap: '0.25rem', width: '180px'}}>
+                                              <div className="animate-pulse bg-gray-600 rounded-full" style={{width: '1.5rem', height: '1.5rem'}}></div>
+                                              <div className="creator-details gap-0.5" style={{gap: '0.1rem'}}>
+                                                <div className="animate-pulse bg-gray-600 rounded" style={{width: '80px', height: '0.7rem'}}></div>
+                                                <div className="animate-pulse bg-gray-600 rounded" style={{width: '60px', height: '0.6rem'}}></div>
+                                              </div>
+                                            </div>
+                                            <div style={{width: '80px', textAlign: 'center'}}>
+                                              <div className="animate-pulse bg-gray-600 rounded" style={{width: '40px', height: '0.8rem', margin: '0 auto'}}></div>
+                                            </div>
+                                            <div style={{width: '70px', textAlign: 'center'}}>
+                                              <div className="animate-pulse bg-gray-600 rounded" style={{width: '50px', height: '0.8rem', margin: '0 auto'}}></div>
+                                            </div>
+                                            <div style={{width: '70px', textAlign: 'center'}}>
+                                              <div className="animate-pulse bg-gray-600 rounded" style={{width: '50px', height: '0.8rem', margin: '0 auto'}}></div>
+                                            </div>
+                                            <div style={{width: '80px', textAlign: 'center'}}>
+                                              <div className="animate-pulse bg-gray-600 rounded" style={{width: '60px', height: '0.8rem', margin: '0 auto'}}></div>
+                                            </div>
+                                            <div style={{width: '100px', textAlign: 'center'}}>
+                                              <div className="animate-pulse bg-gray-600 rounded" style={{width: '70px', height: '0.8rem', margin: '0 auto'}}></div>
+                                            </div>
+                                            <div style={{width: '80px', textAlign: 'center'}}>
+                                              <div className="animate-pulse bg-gray-600 rounded" style={{width: '60px', height: '0.8rem', margin: '0 auto'}}></div>
+                                            </div>
+                                            <div style={{width: '80px', textAlign: 'center'}}>
+                                              <div className="animate-pulse bg-gray-600 rounded-full" style={{width: '24px', height: '24px', margin: '0 auto'}}></div>
+                                            </div>
+                                            <div style={{width: '20px'}}>
+                                              <div className="animate-pulse bg-gray-600 rounded" style={{width: '0.8rem', height: '0.8rem'}}></div>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ) : influencers.length > 0 ? (
+                                  <div className="mt-3 max-w-4xl w-full">
+                                    <div className="creator-list-container" style={{overflowX: 'hidden'}}>
+                                      {/* Action Buttons */}
+                                      <div className="flex justify-end gap-2 mb-2">
+                                        <button
+                                          onClick={handleSelectAll}
+                                          className={`px-3 py-1 text-white text-xs rounded-md transition-colors flex items-center gap-2 ${
+                                            selectedCreators.size === allCreators.length && allCreators.length > 0
+                                              ? 'bg-blue-600 hover:bg-blue-700'
+                                              : 'bg-gray-600 hover:bg-gray-700'
+                                          }`}
+                                        >
+                                          {selectedCreators.size === allCreators.length && allCreators.length > 0 ? (
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                              <path d="M20 6L9 17L4 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                            </svg>
+                                          ) : (
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                              <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="2"/>
+                                            </svg>
+                                          )}
+                                          {selectedCreators.size === allCreators.length && allCreators.length > 0 ? 'Unselect All' : 'Select All'}
+                                        </button>
+                                        <button
+                                          onClick={handleSaveSelectedToList}
+                                          disabled={selectedCreators.size === 0}
+                                          className={`px-3 py-1 text-white text-xs rounded-md transition-colors ${
+                                            selectedCreators.size === 0 
+                                              ? 'bg-gray-500 cursor-not-allowed' 
+                                              : 'bg-blue-600 hover:bg-blue-700'
+                                          }`}
+                                        >
+                                          Save Selected ({selectedCreators.size})
+                                        </button>
+                                      </div>
+
+                                      <div className="creator-list-table ai-mode" style={{minWidth: '0', backgroundColor: '#0F1419', borderRadius: '10px'}}>
+                                        {/* Header */}
+                                        <div className="creator-list-header" style={{
+                                          backgroundColor: '#0F1419',
+                                          color: '#e5e7eb',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '0.5rem',
+                                          padding: '0.5rem 0.75rem',
+                                          borderBottomColor: '#374151',
+                                          borderBottom: '1px solid #374151',
+                                          borderTopLeftRadius: '10px',
+                                          borderTopRightRadius: '10px'
+                                        }}>
+                                          <div style={{width: '20px'}}></div>
+                                          <div style={{width: '180px'}}>Creator</div>
+                                          <div style={{width: '80px', textAlign: 'center'}}>Match</div>
+                                          <div style={{width: '70px', textAlign: 'center'}}>Followers</div>
+                                          <div style={{width: '70px', textAlign: 'center'}}>Views</div>
+                                          <div style={{width: '80px', textAlign: 'center'}}>Engagement</div>
+                                          <div style={{width: '100px', textAlign: 'center'}}>Niche</div>
+                                          <div style={{width: '80px', textAlign: 'center'}}>Location</div>
+                                          <div style={{width: '80px', textAlign: 'center'}}>Buzz Score</div>
+                                          <div style={{width: '20px'}}></div>
+                                        </div>
+
+                                        <div className="creator-list-body" style={{backgroundColor: '#0F1419'}}>
+                                          {influencers.map((creator: any, index) => {
+                                            const creatorId = creator?.id || creator?.username || `creator-${index}`;
+                                            return (
+                                              <CreatorRow
+                                                key={creatorId}
+                                                creator={creator}
+                                                index={index}
+                                                isExpanded={expandedCreators.has(creatorId)}
+                                                onToggleExpand={handleToggleCreatorExpand}
+                                                searchQuery={currentSearchQuery}
+                                                isSelected={selectedCreators.has(creatorId)}
+                                                onToggleSelection={handleToggleCreatorSelection}
+                                              />
+                                            );
+                                          })}
+                                        </div>
+
+                                        {/* Pagination */}
+                                        {totalPages > 1 && (
+                                          <div className="flex items-center justify-center gap-2 p-1 border-t border-gray-600" style={{
+                                            backgroundColor: '#0F1419', 
+                                            borderBottomLeftRadius: '10px',
+                                            borderBottomRightRadius: '10px'
+                                          }}>
+                                            <button 
+                                              onClick={() => handlePageChange(currentPage - 1)} 
+                                              disabled={currentPage === 1} 
+                                              style={{
+                                                padding: '0.25rem 0.5rem',
+                                                fontSize: '0.75rem',
+                                                backgroundColor: currentPage === 1 ? '#374151' : '#4b5563',
+                                                color: currentPage === 1 ? '#6b7280' : '#d1d5db',
+                                                borderRadius: '0.25rem',
+                                                cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                                                border: 'none'
+                                              }}
+                                            >
+                                              Prev
+                                            </button>
+                                            <span style={{fontSize: '0.75rem', color: '#9ca3af'}}>
+                                              Page {currentPage} of {totalPages}
+                                            </span>
+                                            <button 
+                                              onClick={() => handlePageChange(currentPage + 1)} 
+                                              disabled={currentPage >= totalPages} 
+                                              style={{
+                                                padding: '0.25rem 0.5rem',
+                                                fontSize: '0.75rem',
+                                                backgroundColor: currentPage >= totalPages ? '#374151' : '#4b5563',
+                                                color: currentPage >= totalPages ? '#6b7280' : '#d1d5db',
+                                                borderRadius: '0.25rem',
+                                                cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer',
+                                                border: 'none'
+                                              }}
+                                            >
+                                              Next
+                                            </button>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ) : null}
+
+                {/* Loading indicator */}
+                {isLoading && !streamingMessage && (
+                  <div className="flex justify-start">
+                    <div className="flex items-start gap-2 xs:gap-3 max-w-[85%] xs:max-w-[70%]">
+                      <div className="flex-shrink-0">
+                        <div className="w-11 xs:w-14 h-11 xs:h-14 rounded-full overflow-hidden">
+                          <video
+                            className="w-full h-full object-cover"
+                            autoPlay
+                            loop
+                            muted
+                            playsInline
+                            preload="auto"
+                          >
+                            <source
+                              src="https://epwm2xeeqm8soa6z.public.blob.vercel-storage.com/Buzzberry%20AI%20Chat.webm"
+                              type="video/webm"
+                            />
+                            <div className="w-11 xs:w-14 h-11 xs:h-14 bg-[#0f1419] rounded-full flex items-center justify-center">
+                              <img
+                                className="w-6 xs:w-8 h-6 xs:h-8"
+                                alt="Buzzberry AI"
+                                src="/AI Blurb Icon.svg"
+                              />
+                            </div>
+                          </video>
+                        </div>
+                      </div>
+                      <div className="text-white flex items-center">
+                        {/* Fluid wave animation */}
+                        <div className="flex flex-col gap-3">
+                          <div className="text-xs xs:text-sm text-gray-400">
+                            Processing...
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {/* Fluid wave dots */}
+                            <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{animationDelay: '0s', animationDuration: '1.4s'}}></div>
+                            <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{animationDelay: '0.2s', animationDuration: '1.4s'}}></div>
+                            <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{animationDelay: '0.4s', animationDuration: '1.4s'}}></div>
+                            <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{animationDelay: '0.6s', animationDuration: '1.4s'}}></div>
+                            <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{animationDelay: '0.8s', animationDuration: '1.4s'}}></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Streaming message with typewriter effect */}
+                {isLoading && streamingMessage && (
+                  <div className="flex justify-start">
+                    <div className="flex items-start gap-2 xs:gap-3 max-w-[85%] xs:max-w-[70%]">
+                      {/* AI Avatar */}
+                      <div className="flex-shrink-0">
+                        <div className="w-11 xs:w-14 h-11 xs:h-14 rounded-full overflow-hidden relative">
+                          <video
+                            className="w-full h-full object-cover"
+                            autoPlay
+                            loop
+                            muted
+                            playsInline
+                            preload="auto"
+                          >
+                            <source
+                              src="https://epwm2xeeqm8soa6z.public.blob.vercel-storage.com/Buzzberry%20AI%20Chat.webm"
+                              type="video/webm"
+                            />
+                            <div className="w-11 xs:w-14 h-11 xs:h-14 bg-[#0f1419] rounded-full flex items-center justify-center">
+                              <img
+                                className="w-6 xs:w-8 h-6 xs:h-8"
+                                alt="Buzzberry AI"
+                                src="/AI Blurb Icon.svg"
+                              />
+                            </div>
+                          </video>
+                        </div>
+                      </div>
+
+                      {/* Streaming message content */}
+                      <div className="text-white">
+                        <div className="font-normal text-sm xs:text-[15px] leading-6 xs:leading-7 whitespace-pre-wrap [&>strong]:font-semibold [&>ul]:mt-2 [&>ul]:mb-2 [&>li]:ml-4">
+                          <span dangerouslySetInnerHTML={{ __html: renderMarkdown(streamingMessage) }} />
+                          {isLoading && (
+                            <span className="inline-block w-0.5 h-4 bg-slate-800 ml-0.5 animate-pulse" />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div ref={messagesEndRef} />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Input area */}
+        <div className="p-3 xs:p-6">
+          <div className="max-w-4xl mx-auto">
+            <form onSubmit={handleSubmit} className="relative">
+              <div className="flex items-center gap-2 xs:gap-3 bg-[#2f2f2f] rounded-3xl border-0 px-3 xs:px-4 py-2 xs:py-3 shadow-lg">
+                <textarea
+                  ref={textareaRef}
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Message Buzzberry AI..."
+                  className="flex-1 bg-transparent border-none outline-none font-normal text-white text-sm xs:text-base resize-none min-h-[20px] xs:min-h-[24px] max-h-32 placeholder-gray-400 py-1"
+                  rows={1}
+                  disabled={isLoading}
+                />
+                <Button
+                  type="submit"
+                  variant="ghost"
+                  size="sm"
+                  className="p-3 flex-shrink-0 hover:bg-transparent focus:bg-transparent hover:shadow-lg hover:shadow-black/30 rounded-full bg-transparent transition-shadow duration-200"
+                  disabled={!inputValue.trim() || isLoading}
+                  style={{
+                    filter: 'drop-shadow(0 0 0 transparent)',
+                    transition: 'filter 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.filter = 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3))';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.filter = 'drop-shadow(0 0 0 transparent)';
+                  }}
+                >
+                  <img
+                    className="h-6 xs:h-7 w-6 xs:w-7 transition-transform duration-200 hover:scale-110"
+                    alt="Send prompt button"
+                    src="/Send Prompt Button.png"
+                  />
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      {/* Overlay when sidebar is open */}
+      <div className={`fixed inset-0 bg-black transition-opacity duration-300 z-[55] ${
+        isChatHistoryOpen ? 'opacity-50' : 'opacity-0 pointer-events-none'
+      }`} onClick={() => setIsChatHistoryOpen(false)} />
+
+      {/* Chat History Sidebar */}
+      <div className={`fixed top-0 right-0 h-full w-80 transform transition-transform duration-300 ease-in-out z-[60] ${
+        isChatHistoryOpen ? 'translate-x-0' : 'translate-x-full'
+      }`}>
+        <ChatHistorySection
+          onClose={() => setIsChatHistoryOpen(false)}
+          onChatSelect={async (chatId) => {
+            console.log('Loading chat:', chatId)
+            // Don't close the sidebar immediately - let it stay open during loading
+            await loadChatSession(chatId)
+            // Only close sidebar after loading is complete
+            setIsChatHistoryOpen(false)
+          }}
+        />
+      </div>
+    </div>
+  );
+};
